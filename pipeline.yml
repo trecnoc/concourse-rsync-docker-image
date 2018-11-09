@@ -1,0 +1,48 @@
+---
+resource_types:
+- name: slack-notification
+  type: docker-image
+  source:
+    repository: cfcommunity/slack-notification-resource
+    tag: latest
+
+resources:
+- name: git-repo
+  type: git
+  source:
+    uri: https://github.com/trecnoc/concourse-rsync-docker-image.git
+    branch: master
+- name: concourse-rsync-image
+  type: docker-image
+  source:
+    username: trecnoc
+    password: ((docker-hub-password))
+    repository: trecnoc/concourse-rsync
+- name: notify
+  type: slack-notification
+  source:
+    url: ((slack_hook))
+    disable: ((slack_disabled))
+
+jobs:
+- name: publish
+  public: true
+  build_logs_to_retain: 1
+  plan:
+  - do:
+    - get: git-repo
+    - put: concourse-rsync-image
+      params:
+        build: git-repo
+    on_failure:
+      put: notify
+      params:
+        username: $BUILD_PIPELINE_NAME
+        icon_emoji: ":skull_and_crossbones:"
+        text: $BUILD_JOB_NAME job failed
+    on_success:
+      put: notify
+      params:
+        username: $BUILD_PIPELINE_NAME
+        icon_emoji: ":thumbsup:"
+        text: $BUILD_JOB_NAME job succeeded
